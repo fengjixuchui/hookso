@@ -1664,6 +1664,23 @@ int program_replace(int argc, char **argv) {
         code[0] = 0xe9;
         memcpy(&code[1], &offset, sizeof(offset));
 
+        // check
+        struct user_regs_struct oldregs;
+        ret = ptrace(PTRACE_GETREGS, pid, 0, &oldregs);
+        if (ret < 0) {
+            ERR("ptrace %d PTRACE_GETREGS fail", pid);
+            return -1;
+        }
+
+        LOG("cur rip=%lu", (uint64_t) oldregs.rip);
+
+        if ((uint64_t) oldregs.rip >= (uint64_t) old_funcaddr &&
+            (uint64_t) oldregs.rip <= (uint64_t) old_funcaddr + sizeof(code)) {
+            ERR("%d target func %p %u is running at %u, try again", pid, old_funcaddr, (uint64_t) old_funcaddr,
+                (uint64_t) oldregs.rip);
+            return -1;
+        }
+
         ret = remote_process_write(pid, old_funcaddr, code, sizeof(code));
         if (ret != 0) {
             close_so(pid, handle);
@@ -1700,26 +1717,7 @@ void backup_function(int sig) {
     exit(0);
 }
 
-int program_arg(int argc, char **argv) {
-
-    if (argc < 6) {
-        return usage();
-    }
-
-    std::string pidstr = argv[2];
-    std::string targetso = argv[3];
-    std::string targetfunc = argv[4];
-    std::string argindexstr = argv[5];
-
-    LOG("pid=%s", pidstr.c_str());
-    LOG("target so=%s", targetso.c_str());
-    LOG("target function=%s", targetfunc.c_str());
-    LOG("arg index=%s", argindexstr.c_str());
-
-    int pid = atoi(pidstr.c_str());
-    int argindex = atoi(argindexstr.c_str());
-
-    LOG("start parse so file %s %s", targetso.c_str(), targetfunc.c_str());
+int wait_funccall_so(int pid, const std::string &targetso, const std::string &targetfunc, uint64_t args[]) {
 
     void *old_funcaddr_plt = 0;
     void *old_funcaddr = 0;
@@ -1854,13 +1852,43 @@ int program_arg(int argc, char **argv) {
         return -1;
     }
 
-    uint64_t arg1 = regs.rdi;
-    uint64_t arg2 = regs.rsi;
-    uint64_t arg3 = regs.rdx;
-    uint64_t arg4 = regs.r10;
-    uint64_t arg5 = regs.r8;
-    uint64_t arg6 = regs.r9;
-    uint64_t args[6] = {arg1, arg2, arg3, arg4, arg5, arg6};
+    args[0] = regs.rdi;
+    args[1] = regs.rsi;
+    args[2] = regs.rdx;
+    args[3] = regs.r10;
+    args[4] = regs.r8;
+    args[5] = regs.r9;
+
+    return 0;
+}
+
+int program_arg(int argc, char **argv) {
+
+    if (argc < 6) {
+        return usage();
+    }
+
+    std::string pidstr = argv[2];
+    std::string targetso = argv[3];
+    std::string targetfunc = argv[4];
+    std::string argindexstr = argv[5];
+
+    LOG("pid=%s", pidstr.c_str());
+    LOG("target so=%s", targetso.c_str());
+    LOG("target function=%s", targetfunc.c_str());
+    LOG("arg index=%s", argindexstr.c_str());
+
+    int pid = atoi(pidstr.c_str());
+    int argindex = atoi(argindexstr.c_str());
+
+    LOG("start parse so file %s %s", targetso.c_str(), targetfunc.c_str());
+
+    uint64_t args[6] = {0};
+    int ret = wait_funccall_so(pid, targetso, targetfunc, args);
+    if (ret < 0) {
+        return -1;
+    }
+
     if (argindex >= 1 && argindex <= 6) {
         printf("%lu\n", args[argindex - 1]);
     }
