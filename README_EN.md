@@ -14,6 +14,7 @@ Hookso is a Linux dynamic link library injection modification search tool, used 
 * Replace old .so functions with new .so functions
 * Restore .so function replacement
 * Find the function address of .so
+* When a function of .so is executed, trigger the execution of a new function
 
 # Compile
 Git clone code, run scripts, generate hookso and test programs
@@ -37,11 +38,24 @@ while (1) {
 }
 ```
 And the libtest function of libtest.so just prints to standard output
+
+Note that several different ways to call puts are used here. The reason is that different writing methods will cause the position of puts in elf to be different. Multiple writing methods are used here, so that the subsequent search and replacement can be covered. For details, you can ```readelf -r libtest.so``` to view the details.
 ```
-extern "C" bool libtest (int n) {
-    char buff [128] = {0};
-    snprintf (buff, sizeof (buff), "libtest% d", n);
-    puts (buff);
+typedef int (*PutsFunc)(const char *s);
+
+PutsFunc f = &puts;
+
+extern "C" bool libtest(int n) {
+    char buff[128] = {0};
+    snprintf(buff, sizeof(buff), "libtest %d", n);
+    if (n % 3 == 0) {
+        puts(buff);
+    } else if (n % 3 == 1) {
+        f(buff);
+    } else {
+        PutsFunc ff = &puts;
+        ff(buff);
+    }
     return false;
 }
 ```
@@ -238,7 +252,7 @@ libtest 32
 ```
 0x7fd9cfb91668 is the address, 140573469644392 is the value of the address converted to uint64_t
 
-* Example 11: Find the passed parameter of test libtest.so
+* Example 11: View the parameter value of libtest of libtest.so
 ```
 # ./hookso arg 11234 libtest.so libtest 1
 35
@@ -247,8 +261,50 @@ libtest 32
 ```
 The last parameter 1 represents the first parameter, because test is looping +1, so the parameters passed into the libtest function are changing every time
 
+* Example 12: When executing libtest of libtest.so, execute syscall and output haha ​​on the screen
+```
+./hookso trigger 11234 libtest.so libtest syscall 1 i=1 s="haha" i=4
+4
+```
+Then observe the output of test, you can see the output of the call
+```
+libtest 521
+libtest 522
+hahalibtest 523
+libtest 524
+```
+
+* Example 13: When the libtest of libtest.so is executed, call is executed, and the libtest function is called once with the same parameters
+```
+./hookso trigger 11234 libtest.so libtest call libtest.so libtest @1
+0
+```
+Then observe the output of test, you can see that 818 is output twice
+```
+libtest 816
+libtest 817
+libtest 818
+libtest 818
+libtest 819
+libtest 820
+```
+
+* Example 14: When executing libtest of libtest.so, execute dlcall and call the libtestnew function of libtestnew.so once with the same parameters
+```
+./hookso trigger 11234 libtest.so libtest dlcall ./test/libtestnew.so libtestnew @1
+0
+```
+Then observe the output of test, you can see that the result of libtestnew is output
+```
+libtest 972
+libtest 973
+libtestnew 974
+libtest 974
+libtest 975
+```
+
 # QA
-##### Why is there a main.cpp of 1900+ lines?
+##### Why is there a main.cpp of 2K lines?
 Because things are simple, reduce unnecessary packaging, increase readability
 ##### What does this thing actually do?
 Like the Swiss Army Knife, it is much more useful. Can be used to hot update, or monitor the behavior of certain functions
@@ -269,6 +325,6 @@ Modify the so parameter to the file path, so that the so information will be rea
 As you can see, the find command has been successfully executed, the same is true for other commands such as call, dlopen, and replace
 
 # Who is using
-[Lua's code coverage tool cLua](https://github.com/esrrhs/cLua)
+[Lua code coverage tool cLua](https://github.com/esrrhs/cLua)
 
 [Lua performance analysis tool pLua](https://github.com/esrrhs/pLua)
