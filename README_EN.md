@@ -319,7 +319,7 @@ libtest 975
 ```
 # ./hookso argp 11234 140573469644392 1
 35
-# ./hookso arg 11234 140573469644392 1
+# ./hookso argp 11234 140573469644392 1
 36
 ```
 The last parameter 1 represents the first parameter. Because test is looping +1, the parameters passed into the libtest function are changing every time
@@ -404,6 +404,8 @@ Modify the so parameter to the file path, so that the so information will be rea
 As you can see, the find command has been successfully executed, the same is true for other commands such as call, dlopen, and replace
 
 # Who is using
-[Lua code coverage tool cLua](https://github.com/esrrhs/cLua)
+[Lua code coverage tool](https://github.com/esrrhs/cLua)
 
-[Lua performance analysis tool pLua](https://github.com/esrrhs/pLua)
+[Lua performance analysis tool](https://github.com/esrrhs/pLua)
+
+[Lua debug tool](https://github.com/esrrhs/dlua)
