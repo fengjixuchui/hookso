@@ -335,7 +335,7 @@ libtest 975
 ```
 其他triggerp的参数，与trigger相同，不再赘述
 
-* 示例19：通过其他方式（如gdb）获得libtest.so的libtest函数地址，修改其跳转到libtestnew的libtestnew
+* 示例19：通过其他方式（如gdb）获得libtest.so的libtest函数地址，修改其跳转到libtestnew.so的libtestnew
 ```
 # gdb -p 11234 -ex "p (long)libtest" --batch | grep "$1 = " | awk '{print $3}'
 4196064
@@ -367,6 +367,27 @@ libtest 36
 libtest 37
 libtest 38
 ```
+* 示例21：通过其他方式（如gdb）获得test的mysleep函数地址，修改其跳转到libtestnew.so的mysleepnew
+```
+# gdb -p 11234 -ex "p (long)mysleep" --batch | grep "$1 = " | awk '{print $3}'
+4196356
+# ./hookso replacep 11234 4196356 ./test/libtestnew.so mysleepnew
+23030976        4196356 1923701360725
+```
+这里类似示例19，不过这里是把test的原生低地址函数mysleep跳转到so中的高地址函数mysleepnew，内部实现机制不太相同。观察test的输出结果
+```
+libtest 28
+libtest 29
+libtest 30
+libtest 31
+mysleepnew
+libtest 32
+mysleepnew
+libtest 33
+mysleepnew
+libtest 34
+```
+可以看到mysleepnew已经生效
 
 # 用法
 ```
@@ -426,7 +447,7 @@ before call target-function-addr, do syscall/call/dlcall/dlopen/dlclose with par
 ```
 
 # QA
-##### 为什么就一个2k行+的main.cpp?
+##### 为什么就一个3k行+的main.cpp?
 因为东西简单，减少无谓的封装，增加可读性
 ##### 这东西实际有什么作用？
 如同瑞士军刀一样，用处很多。可以用来热更新，或者监控某些函数行为，或者开启调试
